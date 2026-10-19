@@ -88,21 +88,23 @@ class Worldcraft3D {
     let cleanName = key.replace('{', 'TRANS_');
     const imgUrl = `./static/textures/${cleanName}.png`;
 
-    const loader = new THREE.TextureLoader();
-    const texture = loader.load(imgUrl,
-      undefined,
-      undefined,
-      () => { /* fallback on error */ }
-    );
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.LinearMipMapLinearFilter;
+    // Authentic CS 1.6 base fallback colors (never black!)
+    let baseColor = 0xd4ba88; // Default sand/dust color
+    if (key.includes('CRATE') || key.includes('WOOD')) baseColor = 0x8a5d3b;
+    else if (key.includes('BRICK') || key.includes('ROOF')) baseColor = 0x9c4136;
+    else if (key.includes('METAL') || key.includes('CONCRETE')) baseColor = 0x7b8189;
+    else if (key.includes('POOL') || key.includes('TILE')) baseColor = 0x4a9ebb;
+    else if (key.includes('AZTEC')) baseColor = 0x5a6358;
+    else if (key === 'SKY') baseColor = 0x4fa3e0;
+    else if (key === 'WATER') baseColor = 0x2c7ab0;
 
-    const material = new THREE.MeshLambertMaterial({ map: texture });
+    const material = new THREE.MeshLambertMaterial({
+      color: 0xffffff, // White so texture colors are fully preserved
+      wireframe: this.wireframe
+    });
 
     if (key === 'SKY') {
       material.color.setHex(0x4fa3e0);
-      material.map = null;
       material.side = THREE.BackSide;
     } else if (key === 'WATER') {
       material.color.setHex(0x2c7ab0);
@@ -115,7 +117,25 @@ class Worldcraft3D {
       material.color.setHex(0xcc3333);
       material.transparent = true;
       material.opacity = 0.25;
-      material.map = null;
+    } else {
+      const loader = new THREE.TextureLoader();
+      loader.load(
+        imgUrl,
+        (tex) => {
+          tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+          tex.magFilter = THREE.NearestFilter;
+          tex.minFilter = THREE.LinearMipMapLinearFilter;
+          material.map = tex;
+          material.color.setHex(0xffffff);
+          material.needsUpdate = true;
+        },
+        undefined,
+        () => {
+          // Fallback if image not yet loaded
+          material.color.setHex(baseColor);
+          material.needsUpdate = true;
+        }
+      );
     }
 
     this.textureCache.set(key, material);
@@ -185,17 +205,19 @@ class Worldcraft3D {
         mesh = new THREE.Mesh(geometry, this.getTextureMaterial(tex));
         mesh.position.set(bx, by, b.z1);
       } else {
-        geometry = new THREE.BoxGeometry(bw, bl, bh);
-        // Scale texture UVs to tile per 128 units
+      } else {
+        // In Three.js: X is width, Y is height (GoldSrc Z), Z is depth (GoldSrc -Y)
+        geometry = new THREE.BoxGeometry(bw, bh, bl);
+
+        // UV texturing per 128 units
         const uvAttr = geometry.attributes.uv;
-        const repeatX = bw / 128;
-        const repeatY = bl / 128;
+        const repX = bw / 128;
+        const repY = bh / 128;
         for (let i = 0; i < uvAttr.count; i++) {
-          uvAttr.setXY(i, uvAttr.getX(i) * repeatX, uvAttr.getY(i) * repeatY);
+          uvAttr.setXY(i, uvAttr.getX(i) * repX, uvAttr.getY(i) * repY);
         }
         uvAttr.needsUpdate = true;
 
-        // Multi-material: top, bottom, right, left, front, back
         const topTex = (b.textures && b.textures.top) ? b.textures.top : tex;
         const botTex = (b.textures && b.textures.bottom) ? b.textures.bottom : tex;
         const eastTex = (b.textures && b.textures.east) ? b.textures.east : tex;
@@ -203,26 +225,20 @@ class Worldcraft3D {
         const northTex = (b.textures && b.textures.north) ? b.textures.north : tex;
         const southTex = (b.textures && b.textures.south) ? b.textures.south : tex;
 
+        // Three.js BoxGeometry material order: [+X, -X, +Y, -Y, +Z, -Z]
+        // +X: East, -X: West, +Y: Top, -Y: Bottom, +Z: South (-Y in GoldSrc), -Z: North (+Y in GoldSrc)
         const materials = [
           this.getTextureMaterial(eastTex),
           this.getTextureMaterial(westTex),
           this.getTextureMaterial(topTex),
           this.getTextureMaterial(botTex),
-          this.getTextureMaterial(northTex),
-          this.getTextureMaterial(southTex)
+          this.getTextureMaterial(southTex),
+          this.getTextureMaterial(northTex)
         ];
+
         mesh = new THREE.Mesh(geometry, materials);
-        mesh.position.set(bx, by, bz);
-        // Three.js: Y is up, but we use Z-up (GoldSrc convention)
-        mesh.rotation.x = 0;
-      }
-
-      mesh.receiveShadow = true;
-      mesh.castShadow = true;
-
-      // Rotate to match GoldSrc Z-up convention (Three.js Y-up)
-      if (b.type !== 'ROOF') {
-        mesh.rotation.x = -Math.PI / 2;
+        // Correct position: X -> bx, Y -> bz (height), Z -> -by (depth)
+        mesh.position.set(bx, bz, -by);
       }
 
       this.scene.add(mesh);

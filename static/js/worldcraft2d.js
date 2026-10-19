@@ -233,7 +233,6 @@ class Worldcraft2D {
         this.selectedItem.y = this.dragInitialPos.y + dy;
       }
       this.render();
-      this.onProjectChanged();
       return;
     }
 
@@ -251,7 +250,6 @@ class Worldcraft2D {
 
       this.updateMeasurementTooltips(b);
       this.render();
-      this.onProjectChanged();
       return;
     }
 
@@ -291,14 +289,22 @@ class Worldcraft2D {
       this.canvas.style.cursor = 'default';
     }
 
+    let needUpdate = false;
+
     if (this.isDragging) {
       this.isDragging = false;
+      needUpdate = true;
     }
 
     if (this.isResizing) {
       this.isResizing = false;
       this.activeHandle = null;
       this.hideMeasurementTooltips();
+      needUpdate = true;
+    }
+
+    if (needUpdate) {
+      this.onProjectChanged();
     }
 
     if (this.isDrawingNew) {
