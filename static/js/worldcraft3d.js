@@ -59,19 +59,16 @@ class Worldcraft3D {
       gridHelper.position.y = 0;
       this.scene.add(gridHelper);
 
-      // Ambient Light
-      const ambient = new THREE.AmbientLight(0x404860, 1.5);
+      // Ambient + Hemisphere Light for balanced outdoor lighting
+      const ambient = new THREE.AmbientLight(0xffffff, 0.9);
       this.scene.add(ambient);
 
+      const hemiLight = new THREE.HemisphereLight(0xddeeff, 0x332211, 0.8);
+      this.scene.add(hemiLight);
+
       // Directional Sun Light
-      const sun = new THREE.DirectionalLight(0xffe8c0, 2.2);
+      const sun = new THREE.DirectionalLight(0xfffae0, 1.4);
       sun.position.set(1200, 2000, 1500);
-      sun.castShadow = true;
-      sun.shadow.camera.near = 100;
-      sun.shadow.camera.far = 8000;
-      sun.shadow.camera.left = sun.shadow.camera.bottom = -2048;
-      sun.shadow.camera.right = sun.shadow.camera.top = 2048;
-      sun.shadow.mapSize.width = sun.shadow.mapSize.height = 2048;
       this.scene.add(sun);
 
       this.initialized = true;
@@ -89,7 +86,7 @@ class Worldcraft3D {
     }
 
     let cleanName = key.replace('{', 'TRANS_');
-    const imgUrl = `/static/textures/${cleanName}.png`;
+    const imgUrl = `./static/textures/${cleanName}.png`;
 
     const loader = new THREE.TextureLoader();
     const texture = loader.load(imgUrl,
