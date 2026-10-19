@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorldCraft Online — CS 1.6 Map Editor</title>
+<meta name="description" content="Создавай карты для Counter-Strike 1.6 прямо в браузере! Редактор брашей, текстуры, 3D просмотр и компиляция в готовый .BSP файл.">
+<link rel="stylesheet" href="./static/css/worldcraft.css">
+<style>
+/* Properties panel styles */
+.props-outer { width: 220px; background: var(--bg-panel); border-left: 2px solid var(--border-color); display: flex; flex-direction: column; overflow: hidden; }
+.props-header { background: var(--bg-header); border-bottom: 1px solid var(--border-color); padding: 8px 12px; font-weight: bold; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+#props-panel { flex: 1; overflow-y: auto; }
+.prop-section-title { font-weight: bold; color: var(--accent-gold); font-size: 11px; margin-bottom: 6px; }
+.prop-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 6px; font-size: 11px; }
+.prop-input { background: #191b1e; border: 1px solid var(--border-light); border-radius: 3px; color: #e0e4eb; padding: 3px 6px; width: 80px; font-size: 11px; }
+.prop-select { background: #191b1e; border: 1px solid var(--border-light); border-radius: 3px; color: #e0e4eb; padding: 3px; width: 100%; font-size: 11px; }
+.prop-texture-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     TOP HEADER / MENU BAR (Worldcraft Classic Style)
+═══════════════════════════════════════════════════════ -->
+<header class="top-bar">
+  <div class="brand-section">
+    <div class="brand-logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect x="1" y="1" width="26" height="26" rx="3" fill="#1e2124" stroke="#f39c12" stroke-width="1.5"/>
+        <path d="M4 14 L14 4 L24 14 L14 24 Z" fill="none" stroke="#f39c12" stroke-width="2" opacity="0.7"/>
+        <path d="M4 14 L14 8 L24 14" fill="none" stroke="#5c82ba" stroke-width="2"/>
+        <path d="M4 14 L14 20 L24 14" fill="none" stroke="#c45a47" stroke-width="2"/>
+        <circle cx="14" cy="14" r="3" fill="#f39c12"/>
+      </svg>
+      WorldCraft Online
+    </div>
+    <span class="brand-badge">CS 1.6</span>
+  </div>
+
+  <div class="top-actions">
+    <button class="btn-menu" id="btn-presets" title="Загрузить пресет карты">
+      📋 Пресеты
+    </button>
+    <button class="btn-menu" onclick="loadProjectLocal()" title="Загрузить .wconline файл">
+      📂 Открыть
+    </button>
+    <button class="btn-menu" onclick="saveProjectLocal()" title="Сохранить проект .wconline">
+      💾 Сохранить
+    </button>
+    <div style="width:1px;height:22px;background:var(--border-color);"></div>
+    <!-- Map Name -->
+    <div style="display:flex;align-items:center;gap:5px;">
+      <span style="color:#999;font-size:11px;">Карта:</span>
+      <input id="map-name-input" type="text" value="my_map"
+        style="background:#191b1e;border:1px solid #555;border-radius:3px;color:#f39c12;padding:4px 8px;width:140px;font-size:12px;font-weight:bold;">
+    </div>
+    <div style="width:1px;height:22px;background:var(--border-color);"></div>
+    <button class="btn-menu btn-compile" id="btn-compile" title="Компилировать в .BSP">
+      ⚙️ COMPILE .BSP
+    </button>
+  </div>
+</header>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     MAIN WORKSPACE
+═══════════════════════════════════════════════════════ -->
+<main class="workspace">
+
+  <!-- ── Left Tool Palette ────────────────────────────── -->
+  <aside class="tool-palette">
+    <!-- Select -->
+    <div class="tool-group">
+      <button class="tool-btn active" data-tool="select" title="Выбор / Перемещение (V)">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
+          <path d="M2 2 L2 14 L6 10 L10 18 L12 17 L8 9 L14 9 Z"/>
+        </svg>
+        Select
+      </button>
+    </div>
+
+    <!-- Brush Tools -->
+    <div class="tool-group">
+      <button class="tool-btn" data-tool="wall" title="Создать стену/браш (B)">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="2" width="14" height="14"/>
+          <line x1="2" y1="2" x2="16" y2="16" stroke-width="1"/>
+          <line x1="2" y1="16" x2="16" y2="2" stroke-width="1"/>
+        </svg>
+        Wall
+      </button>
+      <button class="tool-btn" data-tool="crate" title="Ящик (C)">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="3" width="12" height="12" rx="1"/>
+          <line x1="3" y1="3" x2="15" y2="15" stroke-width="1"/>
+          <line x1="3" y1="15" x2="15" y2="3" stroke-width="1"/>
+          <rect x="5" y="5" width="8" height="8" fill="none" stroke-width="1"/>
+        </svg>
+        Crate
+      </button>
+      <button class="tool-btn" data-tool="ramp" title="Пандус/Крыша (R)">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M2 16 L16 16 L16 6 L2 16"/>
+          <line x1="2" y1="16" x2="16" y2="6"/>
+        </svg>
+        Ramp
+      </button>
+      <button class="tool-btn" data-tool="water" title="Вода (W)">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M2 10 Q5 7 9 10 Q13 13 16 10"/>
+          <path d="M2 14 Q5 11 9 14 Q13 17 16 14"/>
+          <rect x="2" y="8" width="14" height="8" fill="rgba(50,120,200,0.3)"/>
+        </svg>
+        Water
+      </button>
+      <button class="tool-btn" data-tool="ladder" title="Лестница (L)">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5">
+          <line x1="4" y1="2" x2="4" y2="16"/>
+          <line x1="14" y1="2" x2="14" y2="16"/>
+          <line x1="4" y1="5" x2="14" y2="5"/>
+          <line x1="4" y1="9" x2="14" y2="9"/>
+          <line x1="4" y1="13" x2="14" y2="13"/>
+        </svg>
+        Ladder
+      </button>
+    </div>
+
+    <!-- Entity Tools -->
+    <div class="tool-group">
+      <button class="tool-btn" data-tool="ct" title="CT Spawn (info_player_start)">
+        <img src="./static/icons/ct.svg" width="22" height="22" alt="CT">
+        CT
+      </button>
+      <button class="tool-btn" data-tool="t" title="T Spawn (info_player_deathmatch)">
+        <img src="./static/icons/t.svg" width="22" height="22" alt="T">
+        T
+      </button>
+      <button class="tool-btn" data-tool="bomb" title="Bombsite (func_bomb_target)">
+        <img src="./static/icons/bomb.svg" width="22" height="22" alt="Bomb">
+        Bomb
+      </button>
+      <button class="tool-btn" data-tool="weapon" title="Оружие (armoury_entity)">
+        <img src="./static/icons/weapon.svg" width="22" height="22" alt="Gun">
+        Gun
+      </button>
+      <button class="tool-btn" data-tool="light" title="Источник света (light)">
+        <img src="./static/icons/light.svg" width="22" height="22" alt="Light">
+        Light
+      </button>
+    </div>
+
+    <!-- Texture shortcut -->
+    <div class="tool-group" style="border-bottom:none;">
+      <div style="font-size:9px;color:#888;margin-bottom:3px;text-align:center;">Текстура</div>
+      <div onclick="openTextureBrowser('all')" title="Выбрать текстуру"
+        style="cursor:pointer;width:44px;height:44px;border:1px solid #555;border-radius:4px;overflow:hidden;">
+        <img id="current-texture-preview" src="./static/textures/DUST_SANDWALL.png"
+          style="width:100%;height:100%;image-rendering:pixelated;object-fit:cover;">
+      </div>
+    </div>
+  </aside>
+
+
+  <!-- ── Viewports Container ──────────────────────────── -->
+  <div class="viewports-container">
+
+    <!-- 3D Viewport -->
+    <div class="viewport-3d-pane">
+      <canvas id="canvas3D"></canvas>
+      <div class="viewport-overlay-header">
+        <span class="viewport-title">3D View</span>
+        <div class="view-controls">
+          <button class="view-control-btn" id="btn-wireframe" title="Переключить Wireframe">Wire</button>
+          <button class="view-control-btn" id="btn-reset-cam" title="Сбросить камеру">Reset</button>
+        </div>
+        <span style="color:#666;font-size:10px;">ЛКМ=вращение | ПКМ=пан | Колесо=зум</span>
+      </div>
+    </div>
+
+    <!-- 2D Blueprint Viewport -->
+    <div class="viewport-2d-pane">
+      <canvas id="canvas2D"></canvas>
+
+      <!-- Elevation (Z) Slider Panel -->
+      <div class="elevation-slider-pane">
+        <div class="elevation-title">Z</div>
+        <div style="font-size:9px;color:#888;text-align:center;">Max:</div>
+        <input id="elevMaxZ" type="number" value="144" step="16"
+          style="width:34px;font-size:10px;background:#111;border:1px solid #444;color:#f39c12;border-radius:2px;text-align:center;padding:1px;">
+        <div style="flex:1;margin:4px 0;background:#1a1c1e;width:8px;border-radius:4px;"></div>
+        <div style="font-size:9px;color:#888;text-align:center;">Min:</div>
+        <input id="elevMinZ" type="number" value="0" step="16"
+          style="width:34px;font-size:10px;background:#111;border:1px solid #444;color:#2ecc71;border-radius:2px;text-align:center;padding:1px;">
+      </div>
+
+      <!-- Measurement Tooltips -->
+      <div id="measurementX" class="measurement-box"></div>
+      <div id="measurementY" class="measurement-box"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Properties Panel (Right) ─────────────────────── -->
+  <div class="props-outer">
+    <div class="props-header">
+      ⚙ Свойства
+      <div style="margin-left:auto;display:flex;gap:4px;">
+        <button onclick="appState.editor2D?.deleteSelected()" class="btn-menu"
+          style="padding:2px 7px;font-size:10px;background:#3d1e1e;border-color:#7b3030;" title="Удалить (Del)">🗑</button>
+        <button onclick="appState.editor2D?.duplicateSelected()" class="btn-menu"
+          style="padding:2px 7px;font-size:10px;" title="Дублировать (Ctrl+D)">⎘</button>
+      </div>
+    </div>
+    <div id="props-panel" style="padding:10px;">
+      <p style="color:#666;font-style:italic;text-align:center;margin-top:20px;">Выберите объект кликом в редакторе</p>
+    </div>
+
+    <!-- Sky & Map Settings -->
+    <div style="border-top:1px solid var(--border-color);padding:10px;">
+      <div class="prop-section-title" style="padding:0 0 6px;">🌤 Настройки карты</div>
+      <div class="prop-row">
+        <span>Небо (skyname):</span>
+        <input id="sky-name-input" type="text" value="desert" class="prop-input" style="width:90px;" list="sky-presets">
+        <datalist id="sky-presets">
+          <option value="desert">
+          <option value="de_dust">
+          <option value="cs_dusk">
+          <option value="city">
+          <option value="night">
+          <option value="nuke">
+          <option value="space">
+          <option value="2desert">
+          <option value="dusk">
+        </datalist>
+      </div>
+      <div class="prop-row">
+        <span>Skybox:</span>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="checkbox" id="check-auto-skybox" checked> Авто
+        </label>
+      </div>
+      <div class="prop-row">
+        <span>Быстрая (Fast):</span>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="checkbox" id="check-fast-mode" checked> VIS+RAD
+        </label>
+      </div>
+    </div>
+  </div>
+</main>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     STATUS BAR
+═══════════════════════════════════════════════════════ -->
+<footer class="status-bar">
+  <div class="status-left">
+    <div class="status-stat-pill">📄 <strong id="stat-mapname">my_map</strong></div>
+    <div class="status-stat-pill">⬜ <strong id="stat-brushes">0</strong> брашей</div>
+    <div class="status-stat-pill">● <strong id="stat-entities">0</strong> энтити</div>
+  </div>
+  <div class="status-center">
+    <div style="display:flex;align-items:center;gap:5px;">
+      <span style="color:#5c82ba;">CT: <strong id="stat-ct">0</strong></span>
+      <span style="color:#c45a47;">T: <strong id="stat-t">0</strong></span>
+    </div>
+    <div class="grid-snap-selector">
+      <span style="color:#888;font-size:10px;">Snap:</span>
+      <button class="grid-btn" data-snap="8">8</button>
+      <button class="grid-btn active" data-snap="16">16</button>
+      <button class="grid-btn" data-snap="32">32</button>
+      <button class="grid-btn" data-snap="64">64</button>
+    </div>
+  </div>
+  <div class="status-right">
+    <span style="color:#555;font-size:10px;">ПКМ/Shift+ЛКМ=Пан | Колесо=Зум | Del=Удалить | Ctrl+D=Дубликат</span>
+  </div>
+</footer>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     MODAL: TEXTURE BROWSER
+═══════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-textures">
+  <div class="modal-window" style="width:640px;">
+    <div class="modal-header">
+      <h3>🎨 Браузер текстур</h3>
+      <button class="modal-close-btn" onclick="closeModal('modal-textures')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:12px;">
+      <!-- Upload Zone -->
+      <div class="upload-dropzone" id="upload-dropzone">
+        <div style="font-size:24px;">📁</div>
+        <div>Перетащите PNG/JPG сюда или нажмите для загрузки своей текстуры</div>
+        <div style="font-size:10px;color:#888;margin-top:4px;">Будет автоматически масштабирована до кратного 16 (макс. 512×512)</div>
+        <input type="file" id="upload-file-input" accept=".png,.jpg,.jpeg,.bmp" style="display:none;">
+      </div>
+      <div id="upload-status" style="font-size:11px;min-height:18px;"></div>
+      <!-- Filter/search -->
+      <input type="text" placeholder="Поиск текстуры..." id="texture-search"
+        style="width:100%;background:#191b1e;border:1px solid #555;border-radius:4px;color:#e0e4eb;padding:6px 10px;margin:8px 0;font-size:12px;"
+        oninput="filterTextures(this.value)">
+      <!-- Grid -->
+      <div class="texture-browser-grid" id="texture-browser-grid">
+        <span style="color:#666;">Открывается...</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-menu" onclick="closeModal('modal-textures')">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     MODAL: MAP PRESETS
+═══════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-presets">
+  <div class="modal-window" style="width:500px;">
+    <div class="modal-header">
+      <h3>📋 Пресеты карт</h3>
+      <button class="modal-close-btn" onclick="closeModal('modal-presets')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:14px;">
+      <p style="color:#999;font-size:11px;margin-bottom:12px;">Выберите готовый пресет для быстрого старта или создайте карту с нуля.</p>
+      <div id="presets-container"><span style="color:#666;">Загрузка...</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-menu" onclick="closeModal('modal-presets')">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     MODAL: COMPILE & DOWNLOAD
+═══════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-compile">
+  <div class="modal-window" style="width:620px;">
+    <div class="modal-header">
+      <h3>⚙️ Компиляция CS 1.6 .BSP</h3>
+      <button class="modal-close-btn" onclick="closeModal('modal-compile')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:14px;">
+      <div style="background:#141618;border-radius:5px;padding:10px;margin-bottom:12px;font-size:11px;color:#aaa;">
+        <strong style="color:#f39c12;">Пайплайн VHLT:</strong>
+        HLCSG → HLBSP → HLVIS → HLRAD → <strong style="color:#2ecc71;">.BSP</strong>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="compile-progress-bar">
+        <div class="compile-progress-fill" id="compile-progress-fill"></div>
+      </div>
+
+      <!-- Terminal -->
+      <div class="terminal-window" id="compile-terminal">Нажмите "Компилировать" для запуска...</div>
+
+      <!-- Download Cards -->
+      <div class="download-cards-container" id="download-cards" style="display:none;">
+        <div class="download-card primary">
+          <div style="font-size:28px;">🎮</div>
+          <div id="bsp-info" style="font-size:11px;color:#aaa;"></div>
+          <a href="#" id="download-bsp-link" class="btn-download-bsp" download>
+            ⬇ Скачать .BSP
+          </a>
+          <div style="font-size:10px;color:#888;">Поместить в cstrike/maps/</div>
+        </div>
+        <div class="download-card">
+          <div style="font-size:20px;">📄</div>
+          <div style="font-size:11px;color:#aaa;">Исходный MAP файл</div>
+          <a href="#" id="download-map-link" class="btn-download-bsp" style="background:#555;font-size:11px;" download>
+            ⬇ .MAP
+          </a>
+        </div>
+        <div class="download-card">
+          <div style="font-size:20px;">🎨</div>
+          <div style="font-size:11px;color:#aaa;">WAD3 текстуры</div>
+          <a href="#" id="download-wad-link" class="btn-download-bsp" style="background:#555;font-size:11px;" download>
+            ⬇ .WAD
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;margin-right:auto;">
+        <input type="checkbox" id="check-fast-mode-modal" checked>
+        Быстрая компиляция (Fast VIS + RAD)
+      </label>
+      <button class="btn-menu" onclick="closeModal('modal-compile')">Закрыть</button>
+      <button class="btn-menu btn-compile" id="btn-compile-start" onclick="compileMap()">
+        ⚙️ Компилировать
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     SCRIPTS
+═══════════════════════════════════════════════════════ -->
+<script src="./static/js/vendor/three.min.js"></script>
+<script src="./static/js/vendor/OrbitControls.js"></script>
+<script src="./static/js/browser_wad.js"></script>
+<script src="./static/js/browser_bsp_compiler.js"></script>
+<script src="./static/js/worldcraft2d.js"></script>
+<script src="./static/js/worldcraft3d.js"></script>
+<script src="./static/js/app.js"></script>
+
+<script>
+// Texture search filter
+function filterTextures(query) {
+  const q = query.toLowerCase().trim();
+  document.querySelectorAll('#texture-browser-grid .texture-card').forEach(card => {
+    const name = (card.querySelector('span')?.textContent || '').toLowerCase();
+    card.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+}
+
+// Sync fast mode checkboxes
+document.addEventListener('DOMContentLoaded', () => {
+  const m1 = document.getElementById('check-fast-mode');
+  const m2 = document.getElementById('check-fast-mode-modal');
+  if (m1 && m2) {
+    m1.addEventListener('change', () => m2.checked = m1.checked);
+    m2.addEventListener('change', () => m1.checked = m2.checked);
+  }
+  document.getElementById('check-auto-skybox')?.addEventListener('change', (e) => {
+    appState.project.auto_skybox = e.target.checked;
+  });
+});
+</script>
+</body>
+</html>
